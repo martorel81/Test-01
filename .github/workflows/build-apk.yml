@@ -35,9 +35,11 @@ jobs:
           gradle-version: '8.9'
 
       - name: Compila APK
-        run: |
-          cd "$PROJECT_DIR"
-          gradle assembleDebug
+  run: |
+    cd "$PROJECT_DIR"
+    echo "android.useAndroidX=true" >> gradle.properties
+    echo "android.enableJetifier=true" >> gradle.properties
+    gradle assembleDebug
 
       - name: Prepara APK
         run: |
