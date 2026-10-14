@@ -1,0 +1,54 @@
+name: Build Gestionale Bar APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Scarica repository
+        uses: actions/checkout@v4
+
+      - name: Estrai progetto Android
+        run: |
+          mkdir -p unpacked
+          ZIP=$(find . -maxdepth 1 -name "*.zip" | head -n 1)
+          echo "Uso il file: $ZIP"
+          unzip "$ZIP" -d unpacked
+          PROJECT=$(find unpacked -name settings.gradle -printf '%h\n' | head -n 1)
+          echo "PROJECT_DIR=$PROJECT" >> $GITHUB_ENV
+          echo "Progetto trovato in: $PROJECT"
+
+      - name: Configura Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Configura Android
+        uses: android-actions/setup-android@v3
+
+      - name: Configura Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Compila APK
+        run: |
+          cd "$PROJECT_DIR"
+          gradle assembleDebug
+
+      - name: Prepara APK
+        run: |
+          cp "$PROJECT_DIR/app/build/outputs/apk/debug/app-debug.apk" Gestionale_Bar_TEST.apk
+
+      - name: Carica APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Gestionale_Bar_TEST_APK
+          path: Gestionale_Bar_TEST.apk
