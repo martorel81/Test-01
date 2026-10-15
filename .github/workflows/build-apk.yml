@@ -1,4 +1,4 @@
-name: Build Gestionale Bar APK
+name: Build Gestionale Bar RELEASE
 
 on:
   workflow_dispatch:
@@ -27,7 +27,6 @@ jobs:
           fi
           PROJECT_DIR="$(dirname "$SETTINGS_FILE")"
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-          echo "Progetto Android: $PROJECT_DIR"
           test -f "$PROJECT_DIR/gradle.properties" || touch "$PROJECT_DIR/gradle.properties"
           grep -q '^android.useAndroidX=true$' "$PROJECT_DIR/gradle.properties" || echo 'android.useAndroidX=true' >> "$PROJECT_DIR/gradle.properties"
           grep -q '^android.enableJetifier=true$' "$PROJECT_DIR/gradle.properties" || echo 'android.enableJetifier=true' >> "$PROJECT_DIR/gradle.properties"
@@ -46,30 +45,51 @@ jobs:
       - name: Verifica SDK Android 35
         shell: bash
         run: |
-          echo "ANDROID_HOME=$ANDROID_HOME"
           SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
           if [ -x "$SDKMANAGER" ]; then
             yes | "$SDKMANAGER" --licenses >/dev/null || true
             "$SDKMANAGER" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
-          else
-            echo "sdkmanager non trovato: uso i componenti Android preinstallati sul runner"
           fi
 
-      - name: Compila APK
+      - name: Compila RELEASE non firmata
         shell: bash
         run: |
-          gradle -p "$PROJECT_DIR" assembleDebug --stacktrace
+          gradle -p "$PROJECT_DIR" assembleRelease --stacktrace
 
-      - name: Prepara APK
+      - name: Firma APK RELEASE
         shell: bash
         run: |
-          APK="$PROJECT_DIR/app/build/outputs/apk/debug/app-debug.apk"
-          test -f "$APK"
-          cp "$APK" Gestionale_Bar_TEST.apk
+          UNSIGNED="$PROJECT_DIR/app/build/outputs/apk/release/app-release-unsigned.apk"
+          test -f "$UNSIGNED"
 
-      - name: Salva APK
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          test -x "$BT/zipalign"
+          test -x "$BT/apksigner"
+
+          keytool -genkeypair -v \
+            -keystore gestionale-test-release.jks \
+            -storepass GestionaleBarTest2026 \
+            -keypass GestionaleBarTest2026 \
+            -alias gestionale-test \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 3650 \
+            -dname "CN=Gestionale Bar TEST,O=Gestionale Bar,C=IT"
+
+          "$BT/zipalign" -p -f 4 "$UNSIGNED" Gestionale_Bar_TEST_RELEASE_aligned.apk
+
+          "$BT/apksigner" sign \
+            --ks gestionale-test-release.jks \
+            --ks-pass pass:GestionaleBarTest2026 \
+            --key-pass pass:GestionaleBarTest2026 \
+            --out Gestionale_Bar_TEST_RELEASE.apk \
+            Gestionale_Bar_TEST_RELEASE_aligned.apk
+
+          "$BT/apksigner" verify --verbose Gestionale_Bar_TEST_RELEASE.apk
+
+      - name: Salva APK RELEASE
         uses: actions/upload-artifact@v4
         with:
-          name: Gestionale_Bar_TEST_APK
-          path: Gestionale_Bar_TEST.apk
+          name: Gestionale_Bar_TEST_RELEASE_APK
+          path: Gestionale_Bar_TEST_RELEASE.apk
           if-no-files-found: error
